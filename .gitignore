@@ -1,0 +1,21 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+App/.env
+
+# Chroma local DB cache
+App/chroma_db/
+
+# IDE files
+.vscode/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
