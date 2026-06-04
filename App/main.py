@@ -1,11 +1,18 @@
-import os
-os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-
-# Now keep your existing SQLite patch right below it:
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
+# Safe SQLite check and fallback patch
+try:
+    import sqlite3
+    # If system SQLite version is too old, try applying the binary patch
+    if sqlite3.sqlite_version_info < (3, 35, 0):
+        __import__('pysqlite3')
+        import sys
+        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except (ImportError, ModuleNotFoundError):
+    try:
+        __import__('pysqlite3')
+        import sys
+        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    except ModuleNotFoundError:
+        pass  # Let the app continue and check if ChromaDB can load natively
 from pathlib import Path
 import streamlit as st
 
