@@ -1,25 +1,27 @@
 # E-Commerce chatbot
 
 **Project Overview**
-- **Purpose:** A Streamlit-based assistant that answers FAQ-style questions using a small RAG (ChromaDB) FAQ store and executes natural-language product queries by generating SQL against a local SQLite catalog.
-- **POC status:** This repository is a proof-of-concept implementation meant to showcase a hybrid FAQ + SQL routing architecture, not a production-grade ecommerce system.
-- **Use case:** Demonstrates retrieval-augmented generation, semantic routing (FAQ vs SQL), and safe fallbacks so the app runs even without heavy ML dependencies.
+- **Purpose:** A Streamlit-based assistant that answers FAQ-style questions using a small RAG (ChromaDB) FAQ store, handles casual conversation through `App/smalltalk.py`, and executes natural-language product queries by generating SQL against a local SQLite catalog.
+- **POC status:** This repository is a proof-of-concept implementation meant to showcase a hybrid FAQ + SQL + small-talk architecture, not a production-grade ecommerce system.
+- **Use case:** Demonstrates retrieval-augmented generation, semantic routing (FAQ vs SQL), conversational fallback, and safe fallbacks so the app runs even without heavy ML dependencies.
 
 **Resume Summary (one line)**
-- Built a Streamlit chat assistant that routes user queries to either a ChromaDB-backed FAQ retriever or a Groq-powered SQL generator, integrating embeddings, local DB querying, and robust error handling.
+- Built a Streamlit chat assistant that routes user queries to either a ChromaDB-backed FAQ retriever, a Groq-powered SQL generator, or a small-talk conversational fallback, integrating embeddings, local DB querying, web-scraped catalog data, and robust error handling.
 
 **Features**
 - **FAQ RAG:** Retrieves answers from `App/resources/faq_data.csv` using ChromaDB embeddings (if available).
+- **Small-talk mode:** Uses `App/smalltalk.py` for casual conversational replies and friendly fallback responses.
 - **SQL generation:** Converts natural language product requests to SQLite `SELECT` queries and returns formatted product lists.
+- **Web-scraped catalog data:** Product links and product details are collected through the scraping workflow in `webscrapping/`, which feeds the SQL/product search experience.
 - **Safe fallbacks:** Keyword routing, CSV fuzzy-search, and local formatting when ML models or API calls fail.
 - **Simple UI:** Streamlit chat interface with session history and immediate rendering of responses.
 
 **Screenshots**
-- **Chat interface / blank start**: The app opens with a clean Streamlit chat UI, accepts user queries, and preserves session history.
+- **Chat interface / blank start**: The app opens with a clean Streamlit chat UI, accepts user queries, and preserves session history for FAQ, SQL, and small-talk responses.
 
   <img src="./BlankChat.PNG" alt="Streamlit chat start screen" width="680" />
 
-- **Routing examples / FAQ and SQL output**: The assistant distinguishes FAQ vs SQL queries and displays both knowledge-based answers and product search results.
+- **Routing examples / FAQ, SQL, and small-talk output**: The assistant distinguishes FAQ, SQL, and casual conversation requests and displays the relevant answer or product results.
 
   <img src="./FAQandSQL.PNG" alt="FAQ and SQL assistant results" width="680" />
 
@@ -28,16 +30,19 @@
 - `App/main.py` receives the question and sends it to `App/router.py`.
 - `App/router.py` classifies the query as either an FAQ request or a product search.
 - FAQ queries are handled by `App/faq.py`, which retrieves relevant answers from `App/resources/faq_data.csv` and optionally uses ChromaDB embeddings.
-- Product search queries are handled by `App/sql.py`, which generates SQLite SQL, runs it against `App/db.sqlite`, and formats the results.
-- Responses are returned to the Streamlit UI and displayed in chat form.
+- Casual or greeting-style queries are handled by `App/smalltalk.py` for friendly conversational responses.
+- Product search queries are handled by `App/sql.py`, which generates SQLite SQL, runs it against a local catalog (built from web-scraped product data in `webscrapping/`), and formats the results.
+- Responses are returned to the Streamlit UI and displayed in chat form, including FAQ answers, SQL search results, and smalltalk replies.
 
-  <img src="./App/resources/architecture-diagram.png" alt="Architecture diagram" width="720" />
+  <img src="./App/resources/architecture-diagram.png" alt="Architecture diagram showing FAQ_chain, SQL_chain, and small_talk_chain flow in the app" width="720" />
 
 **Architecture & File Structure**
 - **`App/main.py`**: Streamlit chat application and orchestration layer that captures user input, manages session history, and routes requests to the backend pipeline. ([App/main.py](App/main.py))
 - **`App/router.py`**: Adaptive intent router that chooses FAQ or SQL processing using semantic intent classification with a deterministic fallback. ([App/router.py](App/router.py))
 - **`App/faq.py`**: FAQ knowledge engine that ingests structured customer questions, performs retrieval, and builds context-aware answer generation. ([App/faq.py](App/faq.py))
+- **`App/smalltalk.py`**: Handles casual conversation and fallback responses for greeting or general chat-style queries. ([App/smalltalk.py](App/smalltalk.py))
 - **`App/sql.py`**: Product search engine converting natural language into SQLite queries, executing them locally, and formatting results for chat display. ([App/sql.py](App/sql.py))
+- **`webscrapping/`**: Contains the scraped product links, product data, and duplicate/unavailable-product outputs used to build the SQL catalog. ([webscrapping](webscrapping))
 - **`App/resources/faq_data.csv`**: Curated FAQ knowledge base for the RAG retrieval pipeline. ([App/resources/faq_data.csv](App/resources/faq_data.csv))
 - **`App/db.sqlite`**: Local ecommerce catalog containing products used for SQL-powered search and discovery. ([App/db.sqlite](App/db.sqlite))
 - **`.vscode/launch.json`**: Developer-friendly debug configurations for attaching VS Code to the Streamlit runtime. ([.vscode/launch.json](.vscode/launch.json))
@@ -66,6 +71,7 @@ python -m streamlit run App/main.py
 - FAQ: "What is the shipping time?" → answers from FAQ CSV.
 - FAQ: "How can I track my order?" → retrieves answer from the FAQ knowledge base.
 - FAQ: "Do you offer international shipping?" → returns shipping availability details.
+- Small-talk: "Hi", "How are you?", or "Tell me a joke" → handled by `App/smalltalk.py`.
 - SQL: "Show Puma shoes under 3000" → routes to SQL, generates `SELECT`, and returns product results.
 - SQL: "Find Nike products with discount" → tests brand filtering and search intent.
 - SQL: "List top-rated running shoes" → validates natural-language query parsing into SQL.
