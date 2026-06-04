@@ -1,24 +1,28 @@
 from semantic_router import Route
-from semantic_router import Route
 from semantic_router.routers import SemanticRouter
+from semantic_router.encoders import HuggingFaceEncoder
+import semantic_router
 
-# Try to import and initialize the HuggingFace encoder and router.
-# If any import or runtime error occurs (missing torch/transformers, DLLs,
-# etc.), fall back to leaving `router` as None so `safe_route` can use a
-# keyword-based fallback.
+print("Semantic Router Version:", semantic_router.__version__)
+print("Location:", semantic_router.__file__)
+
+router = None
+
+# =====================================================
+# ENCODER
+# =====================================================
 try:
-    from semantic_router.encoders import HuggingFaceEncoder
+    print("Loading HuggingFace encoder...")
 
-    # -----------------------
-    # ENCODER (load once)
-    # -----------------------
     encoder = HuggingFaceEncoder(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
-    # -----------------------
+    print("Encoder loaded successfully.")
+
+    # =====================================================
     # ROUTES
-    # -----------------------
+    # =====================================================
     faq = Route(
         name="faq",
         utterances=[
@@ -38,72 +42,145 @@ try:
             "Show me all products under a specific price range.",
             "List all items with a high discount percentage.",
             "Find me shoes with ratings above a certain score.",
-            "All product which has a high discount and top ratings.",
-            "Search for specific brands like Nike or Adidas with filters.",
-            "Show me the cheapest clothes available."
+            "Search for Nike or Adidas products.",
+            "Show me cheapest clothes available.",
+            "Find discounted shoes"
         ]
     )
 
-    # -----------------------
-    # Initialize router
-    # -----------------------
+    small_talk = Route(
+        name="small_talk",
+        utterances=[
+            "How are you?",
+            "What is your name?",
+            "Are you a bot?",
+            "Tell me a joke.",
+            "What's the weather like today?",
+            "What do you do?"
+        ]
+    )
+
+    # =====================================================
+    # ROUTER
+    # =====================================================
     router = SemanticRouter(
         encoder=encoder,
-        routes=[faq, sql],
-        auto_sync="local"
+        routes=[faq, sql, small_talk]
     )
-except Exception:
-    # If initialization fails, ensure `router` exists but is None.
+
+    print("\nRouter created successfully")
+    print("Routes:", [r.name for r in router.routes])
+
+    # =====================================================
+    # FIX: BUILD INDEX (IMPORTANT FOR YOUR VERSION)
+    # =====================================================
+    print("\nBuilding / syncing index...")
+
+    try:
+        router.sync(sync_mode="local")   # 🔥 FIX FOR YOUR ERROR
+        print("Index synced successfully.")
+    except Exception as e:
+        print("Sync failed:", e)
+
+except Exception as e:
+    print("Initialization failed:", e)
     router = None
 
 
-
-# -----------------------
-# Test / Safe routing
-# -----------------------
+# =====================================================
+# RESULT WRAPPER
+# =====================================================
 class RouteResult:
     def __init__(self, name: str, score: float = 1.0):
         self.name = name
         self.score = score
 
 
+# =====================================================
+# ROUTER FUNCTION
+# =====================================================
+def safe_route(query: str):
+
+    if router is not None:
+        try:
+            result = router(query)
+
+            print(f"\nQuery: {query}")
+            print("Raw result:", result)
+
+            if result and getattr(result, "name", None):
+                score = (
+                    getattr(result, "similarity_score", None)
+                    or getattr(result, "score", None)
+                    or 0.0
+                )
+
+                return RouteResult(result.name, score)
+
+        except Exception as e:
+            print("Router error:", e)
+
+    # =====================================================
+    # FALLBACK KEYWORD ROUTING
+    # =====================================================
+    q = query.lower()
+
+    sql_keywords = [
+        "show", "list", "find", "price", "discount",
+        "rating", "brand", "nike", "adidas", "puma",
+        "shoes", "products"
+    ]
+
+    faq_keywords = [
+        "return", "refund", "shipment", "shipping",
+        "track", "tracking", "order", "payment",
+        "checkout", "package"
+    ]
+
+    small_talk_keywords = [
+        "how are you", "your name", "bot",
+        "joke", "weather", "what do you do"
+    ]
+
+    if any(k in q for k in sql_keywords):
+        return RouteResult("sql", 0.5)
+
+    if any(k in q for k in faq_keywords):
+        return RouteResult("faq", 0.5)
+
+    if any(k in q for k in small_talk_keywords):
+        return RouteResult("small_talk", 0.5)
+
+    return RouteResult("faq", 0.25)
+
+
+# =====================================================
+# TESTING
+# =====================================================
 def main():
+
     test_queries = [
         "What is your return policy?",
         "How do I track my order?",
         "Show me Nike shoes with discount",
         "Shoes under 3000",
         "Puma shoes on sale",
-        "What payment methods are accepted?"
+        "What payment methods are accepted?",
+        "Tell me a joke.",
+        "What is your name?"
     ]
 
-    for q in test_queries:
-        r = safe_route(q)
-        print(f"\nQuery: {q}")
-        print(f"Route: {r.name if r else 'None'} (score={getattr(r,'score',None)})")
+    print("\n" + "=" * 60)
+    print("RUNNING TEST QUERIES")
+    print("=" * 60)
 
+    for query in test_queries:
+        result = safe_route(query)
 
-def safe_route(query: str):
-    """Return an object with `.name` and `.score`.
-
-    Tries the semantic `router` first. If that fails (missing ML deps
-    or low-confidence), falls back to a simple keyword heuristic.
-    """
-    try:
-        result = router(query)
-        if result and getattr(result, "name", None) and getattr(result, "score", 0) > 0.55:
-            return result
-    except Exception:
-        # encoder or model not available; fall through to heuristic
-        pass
-
-    # Keyword-based fallback (simple and deterministic)
-    q = query.lower()
-    sql_keywords = ["select", "where", "from", "show", "list", "order", "price", "discount", "rating", "ratings", "brand", "find", "filter"]
-    if any(k in q for k in sql_keywords):
-        return RouteResult("sql", score=0.5)
-
-    return RouteResult("faq", score=0.5)
+        print("\n--------------------------------")
+        print("Query :", query)
+        print("Route :", result.name)
+        print("Score :", result.score)
 
 
 if __name__ == "__main__":

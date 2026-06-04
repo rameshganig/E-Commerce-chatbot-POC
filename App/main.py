@@ -1,19 +1,25 @@
 from pathlib import Path
 import streamlit as st
-#from router import router
+
 from faq import faq_chain
 from sql import sql_chain
+from smalltalk import talk   # ✅ ADD THIS
+
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(page_title="E-Commerce FAQ Chatbot", page_icon="💬")
 st.title("E-Commerce FAQ Chatbot")
 
+
 # --- Initialize Session State ---
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
+
+# =====================================================
+# ROUTER WRAPPER
+# =====================================================
 def get_router():
-    # Use the safe routing wrapper from router.py (returns a route name or fallback)
     from router import safe_route
     return safe_route
 
@@ -31,34 +37,54 @@ def get_bot_route(user_query):
 
         return DefaultRoute()
 
+
+# =====================================================
+# MAIN DISPATCH FUNCTION (UPDATED WITH SMALLTALK)
+# =====================================================
 def ask(query):
-    # Use the safe cached router wrapper instead of calling router directly
     route = get_bot_route(query)
+
     if route.name == "faq":
         return faq_chain(query)
+
     elif route.name == "sql":
-        return sql_chain(query)   
+        return sql_chain(query)
+
+    # 🔥 SMALL TALK HANDLER (GROQ LLM)
+    elif route.name == "small_talk":
+        return talk(query)
+
     else:
         return "Sorry, I couldn't understand your query. Please try again."
+
 
 # --- Display Conversation History ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+
 # --- Handle Chat Input ---
 query = st.chat_input("Ask a question about our products or services:")
+
 if query:
-    # 1. Render and save user question immediately
+
+    # 1. User message
     with st.chat_message("user"):
         st.markdown(query)
-    st.session_state.messages.append({"role": "user", "content": query})
-    
-    # 2. Get response safely
+
+    st.session_state.messages.append(
+        {"role": "user", "content": query}
+    )
+
+    # 2. Get response
     with st.spinner("Thinking..."):
         response = ask(query)
-    
-    # 3. Render and save bot answer
+
+    # 3. Bot message
     with st.chat_message("assistant"):
         st.markdown(response)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response}
+    )
