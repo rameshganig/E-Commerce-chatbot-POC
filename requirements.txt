@@ -1,6 +1,7 @@
 streamlit
 pandas
 chromadb
+pysqlite3-binary
 groq
 python-dotenv
 semantic-router
